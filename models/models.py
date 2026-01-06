@@ -29,7 +29,7 @@ player_model = {
 state_model = {
     "turn": 1,
     "houses" : 32,
-    "hotel" : 12,
+    "hotels" : 12,
     "game_over": False,
     "money": 100000
 }

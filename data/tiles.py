@@ -65,7 +65,7 @@ tiles= [
     },
     {
         "name": "Chance",
-        "type": "chance"
+        "type": "cards"
     },
     {
         "name": "Vermont Avenue",
@@ -225,7 +225,7 @@ tiles= [
     },
     {
         "name": "Chance",
-        "type": "chance"
+        "type": "cards"
     },
     {
         "name": "Indiana Avenue",
@@ -376,7 +376,7 @@ tiles= [
     },
     {
         "name": "Chance",
-        "type": "chance"
+        "type": "cards"
     },
     {
         "name": "Park Place",
