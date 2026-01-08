@@ -26,12 +26,16 @@ player_model = {
     "doubles": 0
 }
 
-state_model = {
+game_model = {
     "turn": 1,
     "houses" : 32,
     "hotels" : 12,
     "game_over": False,
-    "money": 100000
+    "money": 100000,    
+    "cards": {
+        "chance_cards": [],
+        "treasure_cards": []
+    }
 }
 
 
@@ -78,7 +82,7 @@ def create_game(users):
         "name": users[i]["name"]
     } for i in range(len(users))]
     new_game = {
-        **state_model, "id": str(uuid.uuid1()),
+        **game_model, "id": str(uuid.uuid1()),
         "players": players,
         "cards": cards,
     }
