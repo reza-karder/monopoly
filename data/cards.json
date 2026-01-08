@@ -1,4 +1,28 @@
 {
-  "chance_cards": [],
-  "treasure_cards": []
+  "chance_cards": 
+  [
+    "Move to Boardwalk",
+    "Pay poor tax of $15",
+    "Go directly to Jail",
+    "Go to GO tile and Collect $200",
+    "Pay $50 for visit a Doctor",
+    "It's your birthday receive $100 from bank",
+    "Go back 3 tiles",
+    "Your speeding ticket is $20",
+    "This card may be kept until needed\nGet out of jail free",
+    "This card may be kept until needed\nGet out of jail free"
+  ],
+  "treasure_cards": 
+  [
+    "Receive $100 from bank",
+    "Go to jail",
+    "Pay hospital fee of $100",
+    "Bank error in your account\nCollect $200",
+    "You have inherited $100",
+    "Go to the Short Line station\nGet $200 if you cross the GO tile",
+    "Get $50 from selling stocks",
+    "Go to State Avenue\nIf you pass the GO tile you will receive $200",
+    "Pay $50 to each player on the occasion of Nowruz",
+    "Get a $50 subsidy"
+  ]
 }
