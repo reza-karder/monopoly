@@ -3,6 +3,7 @@ from prompt_toolkit.shortcuts import choice
 from features.auth import signin, signup
 from models.models import create_game, find_all_games, find_game
 import time
+from logic import turner
 
 def new_game():
     users = []
@@ -39,7 +40,8 @@ def new_game():
         
         users.append(user)  
 
-    create_game(users)
+    game = create_game(users)
+    turner(game)
 
 def load_game():
     games = find_all_games()
@@ -86,6 +88,7 @@ def load_game():
             print_panel("You Have Successfuly Entered Your Account", type="SUCCESS")
             time.sleep(2)   
             signed_users.append(user)
+        turner(game)
                 
 def run_start_menu():
 

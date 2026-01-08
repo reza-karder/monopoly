@@ -13,13 +13,17 @@ types = {
 def clear_console():
     os.system("cls")
 
-def print_panel(text, type="INFO", clear=True):
+def print_panel(*tex, type="INFO", clear=True, color= None):
     global types
     console = Console()
     if(clear): clear_console()
-    
+    text = ''
+    for word in tex:
+        text+= " "+ str(word)
+    if not color:
+        color = types[type]["color"] 
     content = Text(text, justify="center", style="bold")
-    panel = Panel(content, box=box.MINIMAL, style=f"on {types[type]["color"]}")
+    panel = Panel(content, box=box.MINIMAL, style=f"on {color}")    
     console.print(panel)
 
 

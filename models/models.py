@@ -2,6 +2,7 @@ import json
 import uuid
 import random
 
+
 user_model = {
     "name": "",
     "password": "",
@@ -12,38 +13,25 @@ user_model = {
 }
 
 player_model = {
-    "id":
-    "",
-    "name":
-    "",
-    "money":
-    0,
-    "properties": [{
-        "id": "",
-        "type": "AVENUE",
-        "homes_count": 0,
-        "hotels_count": 0,
-        "is_mortgaged": False
-    }],
-    "position":
-    1,
-    "remained_jail":
-    0,
-    "has_jail_card":
-    False
+    "username" : "yasin2007",
+    "money" : 1500,
+    "in_jail" : False,
+    "position": 1,
+    "properties": [],
+    "jail_pass": 0,
+    "dice_turn" : 3,
+    "bankrupt" : False,
+    "value" : 0,
+    "selling_power" : 0,
+    "doubles": 0
 }
 
 game_model = {
-    "id": "",
-    "current_turn": 1,
-    "time_play": 0,
-    "is_over": False,
-    "bank": {
-        "money": 0,
-        "properties": [],
-        "mortgaged_properties": []
-    },
-    "players": [],
+    "turn": 1,
+    "houses" : 32,
+    "hotels" : 12,
+    "game_over": False,
+    "money": 100000,    
     "cards": {
         "chance_cards": [],
         "treasure_cards": []
@@ -96,7 +84,7 @@ def create_game(users):
     new_game = {
         **game_model, "id": str(uuid.uuid1()),
         "players": players,
-        "cards": cards
+        "cards": cards,
     }
     games.append(new_game)
 
@@ -107,11 +95,20 @@ def create_game(users):
 
 
 def find_all_games():
-    with open("data/games.json", "r", encoding="utf-8") as read_files:
-        games = json.load(read_files)
-
-    return games or []
-
+    try:
+        with open("data/games.json", "r", encoding="utf-8") as read_files:
+            read = read_files.read().strip()
+            if not read:
+                print("dsflhfs")
+                return []
+            games = json.loads(read)
+            return games
+    except json.JSONDecodeError as e:
+        print(e, "jkfshskf")
+        return []
+    except Exception as e:
+        print("its", e)
+        return []
 
 def find_game(id):
     games = find_all_games()
@@ -124,11 +121,11 @@ def update_game(id, updates):
     games = find_all_games()
     game = list(filter(lambda game: game["id"] == id, games))[0]
     index = games.index(game)
-    game = {**game, **updates}
-    games[index] = game
+    updated_game = updates
+    games[index] = updated_game
 
     with open("data/games.json", "w", encoding="utf-8") as write_file:
-        json.dump(games, write_file)
+        json.dump(games, write_file, indent=4)
 
     return games
 
