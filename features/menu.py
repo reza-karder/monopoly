@@ -3,7 +3,7 @@ from prompt_toolkit.shortcuts import choice
 from features.auth import signin, signup
 from models.models import create_game, find_all_games, find_game
 import time
-from logic import turner
+from features.logic import turner
 
 def new_game():
     users = []
