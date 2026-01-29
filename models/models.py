@@ -23,7 +23,8 @@ player_model = {
     "bankrupt" : False,
     "value" : 0,
     "selling_power" : 0,
-    "doubles": 0
+    "doubles": 0,
+    "remained_jail" : 0
 }
 
 game_model = {
