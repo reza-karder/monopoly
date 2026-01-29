@@ -4,94 +4,88 @@ from data.tiles import tiles as ti
 import copy
 from models.models import update_game
 from utils.common import dice
-# from features.auction import auction, mortagage
+from utils.auction import auction
+from utils.mortgage import mortgage
+from features.status import show_status
+from features.jail import jail
+from features.cards_handler import pick_chance_card, pick_treasure_card
 import time
 
-# todo: 1: i didn't see any func to change the ownership of player properties to opponent when his bankrupt
-# todo: 2: when player is about to bankrupt he can mortgage his properties to prevent it (only properties which has no house on color set)
 
 colors = {"brown": 2, "light_blue": 3, "pink": 3, "orange": 3, "red": 3, "yellow": 3, "green": 3, "dark blue": 2}
 
 
 def turner(game):
-    global state
+
     global turning
     turning = True
-    state = copy.deepcopy(game)
-    board = copy.deepcopy(ti)
-    players = state["players"]
-    state["tiles"] = board  # fixme: board is new each time no save
-    state["turn"] = 0  # fixme: turn is not saved
+
+
+    players = game["players"]
     global lengths
     lengths = 4
-    while not state["game_over"]:
+    while not game["game_over"]:
 
         players[:] = [p for p in players if not p["bankrupt"]]
 
         if len(players) <= 1:
-            state["game_over"] = True
+            game["game_over"] = True
             break
-        player = players[state["turn"]]
-        show_players(state["players"], player)
+        player = players[game["turn"]]
+        show_status(game)
         global options
         options = []
         dice_num = 0
         is_double = False
-        if player["in_jail"]:  # fixme: if got out of jail player has turn
-            pris()
-            next_turn(state, players)
+        if player["in_jail"]:
+            jail()
+            next_turn(game, players)
             continue
 
         dice_num, is_double = dice()
-        time.sleep(2)  # fixme: why?
         check_position(player, dice_num)
 
-        tile = state["tiles"][player["position"]]
+        tile = game["tiles"][player["position"]]
 
         if is_double:
             player["doubles"] += 1
             if player["doubles"] == 3:
                 player["position"] = 10
-                player["in_jail"] = True  # fixme: Set the remained_jail to 3 not in_jail
+                player["in_jail"] = True
+                player["remained_jail"] = 3 
                 player["doubles"] = 0
-                pris()  # fixme: No need For this
-                show_players(state["players"], player, dice=dice_num)
-                next_turn(state, players)
+                show_players(game["players"], player, dice=dice_num)
+                next_turn(game, players)
                 continue
         else:
             player["doubles"] = 0
-        show_players(state["players"], player, dice=dice_num)
-        if player["money"] < 0:  # fixme: no need for this until a action happens like tax
-            bankrupcy(player, 0, state)
+
         check_tile(player, tile, dice_num, is_double)
 
         while turning:
             options = []
-            show_players(players, player, )
-            time.sleep(2)  # fixme: why?
+            
             command = make_turn(player, tile)
             if command == "end_turn":
                 break
             make_choice(command, player, tile)
-        if player["money"] < 0:  # fixme: no need for this until a action happens like tax
-            bankrupcy(player, 0, state)
-        if not is_double:  # fixme: if is duble game is not saved
-            next_turn(state, players)
+        if not is_double:  
+            next_turn(game, players)
+        else:
+            update_game(game["id"], game)
 
 
-def next_turn(state, players):
-    update_game(state["id"], state)
+def next_turn(game, players):
+    update_game(game["id"], game)
     time.sleep(3)
-    turning = True  # fixme: not used
-    time.sleep(2)
     if len(players) == lengths:
-        state["turn"] = (state["turn"] + 1) % len(players)
+        game["turn"] = (game["turn"] + 1) % len(players)
 
 
 def make_turn(player, tile):
     build_option(player, tile)
     buy_option(player, tile)
-    sell_option(player)  # fixme: there is no sell in game just trade
+    sell_option(player)  
     options.append(("end_turn", "End_turn"))
 
     print_panel("choose", clear=False)
@@ -106,13 +100,13 @@ def make_choice(command, player, tile):
         case "build":
             built_list_maker(player, tile["color"])
         case "sell":
-            sell(player, state)
-        case "mortagage":
-            mortagage()
+            sell(player, game)
+        case "mortgage":
+            mortgage()
         case "buy":
-            buy(player, tile, state)
+            buy(player, tile, game)
         case "auction":
-            auction(tile, state["players"], state)
+            auction(tile, game["players"], game)
 
 
 def show_players(players, current, dice=None):
@@ -145,9 +139,13 @@ def check_tile(player, tile, dice_num, is_double):
         case "utilities":
             comp(player, tile, dice_num)
         case "jail":
-            pris()  # fixme: if player got into jail the pris must be runed in the next turn not current turn
-        case "cards" | "cards":  # fixme: what does | doing?
-            card(state["cards"], player, kind)
+            player["in_jail"]=True
+        case "chance":
+            pick_chance_card(game)
+            turning = False
+        case "community":
+            pick_treasure_card(game)
+            turning = False
 
 
 def check_position(player: dict, dice_num):
@@ -171,29 +169,25 @@ def prop(player, tile):
         choices = []
         try:
             if tile.get("is_mortgaged", False) == True:
-                # mortagage buy back
+                # mortgage buy back
                 options.append(("end_turn", "End_turn"))
-                command = choice(message="", options=[("mortagage", "Buy back"), ("end_turn", "End turn")],
+                command = choice(message="", options=[("mortgage", "Buy back"), ("end_turn", "End turn")],
                                  default="end_turn")
-                if command == "mortagage":
-                    mortagage()
+                if command == "mortgage":
+                    mortgage()
         except Exception as e:
             print_alert("not doing", e)
 
 
 def build_option(player, tile):
-    # fixme: player can build on any tile if has set. not only the current tile
     if own_color_set(player, tile):
         try:
-            if tile.get("house_cost", None) <= player["money"]:
+            if tile.get("house_cost", None) <= player["money"] and can_change_house(player,tile,1):
                 options.append(("build", "build house"))
         except Exception:
             pass
 
 
-def mortagage():
-    # todo
-    pass
 
 
 def buy_option(player, tile):
@@ -210,7 +204,7 @@ def end_turn():
 
 
 def sell_option(player):
-    properties = [til for til in state["tiles"] if til.get("owner", None) == player["name"]]
+    properties = [til for til in game["tiles"] if til.get("owner", None) == player["name"]]
     if properties:
         options.append(("sell", "Sell"))
         return (True)
@@ -237,8 +231,8 @@ def own_color_set(player, tile):
     if not color:
         return False
     color_set = []
-    for property in state["tiles"]:
-        if property["type"] == "property" and property["color"] == color and property["owner"] == player["name"]:
+    for property in game["tiles"]:
+        if property["type"] == "property" and property["color"] == color and property["owner"] == player["name"] and property["mortgaged"]==False:
             color_set.append(property)
     if len(color_set) == colors[color]:
         return color_set
@@ -248,25 +242,25 @@ def own_color_set(player, tile):
 
 def rentcalculator(tile, player: dict, dice=0):
     if tile["type"] == "property":
-        return tile["rent"][tile["houses"]]  # fixme: what if there is a hotel
+        return tile["rent"][tile["houses"]]  
     elif tile["type"] == "railroad":
         num = 0
-        for proper in state["tiles"]:
+        for proper in game["tiles"]:
             if proper["type"] == "railroad" and proper["owner"] == player["name"]:
                 num += 1
-        return 25 * (2 ** (num - 1))  # fixme: use the rent in railroad tile data
-    elif tile["type"] == "company":  # fixme: utilities not company
+        return tile["rent"][num-1] 
+    elif tile["type"] == "utilities":  
         num = 0
-        properties = [x for x in state["tiles"] if x["owner"] == tile["owner"]]
+        properties = [x for x in game["tiles"] if x["owner"] == tile["owner"]]
         for proper in properties:
-            if proper["type"] == "company":
+            if proper["type"] == "utilities":
                 num += 1
         if num == 1:
             return dice * 4
         elif num == 2:
             return dice * 10
         else:
-            ValueError("wrong number of railroad")  # fixme: railroad?
+            ValueError("wrong number of utilities") 
     else:
         raise ValueError("wrong type")
 
@@ -276,13 +270,12 @@ def bankrupcy(player, price, opponent: dict):
     if player["bankrupt"] == True:
         return []
     while price > player["money"]:
-        properties = [x for x in state["tiles"] if x.get("owner", None) == player["name"]]
+        properties = [x for x in game["tiles"] if x.get("owner", None) == player["name"]]
         if not properties:
             player["bankrupt"] = True
-            clean_dead(player, state)
+            clean_dead(player, game, opponent)
             lengths -= 1
             return []
-        # fixme: what is sell? if player is about to bankrupt he can mortgage his properties
         sell(player, opponent)
 
 
@@ -302,25 +295,16 @@ def sell_value(tile):
 
 def show_property(sell_list):
     sold = choice(message="", options=sell_list)
-    sold_tile = next(tile for tile in state["tiles"] if tile["name"] == sold)
+    sold_tile = next(tile for tile in game["tiles"] if tile["name"] == sold)
     return sold_tile
 
 
-def card(cards, player, kind):
-    #    if not cards:
-    #        return
-    #    _community_card_number = 10
-    #    random_card = randint(1,_community_card_number)
-    #    if kind=="cardchance":
-    #        random_card+=_community_card_number
-    #    card_func = globals()[f"{cards[random_card-1]}_func"]
-    #    card_func(player)
-    turning = False
+
 
 
 def taxs(player, tile):
     tax = tile["amount"]
-    move_money(player["name"], "state", tax)
+    move_money(player["name"], "game", tax)
     turning = False
 
 
@@ -328,7 +312,7 @@ def rail(player, tile):
     if tile["owner"] == None:
         buy_option(player, tile)
     elif tile["owner"] != player["name"]:
-        for user in state["players"]:
+        for user in game["players"]:
             if user["name"] == tile["owner"]:
                 owner = user
                 break
@@ -338,39 +322,38 @@ def rail(player, tile):
 
 def comp(player, tile, dice_num):
     if tile["owner"] == None:
-        buy(player, tile, state)
+        buy(player, tile, game)
     elif tile["owner"] != player["name"]:
         rent = rentcalculator(tile, player, dice=dice_num)
         move_money(player["name"], tile["owner"], rent)
 
 
-# fixme: in taxs func the opponent is passed "state" which is not a player
 def move_money(player, opponent, amount):
-    opponent = next((x for x in state["players"] if x["name"] == opponent), state)
-    player = next((x for x in state["players"] if x["name"] == player), state)
+    opponent = next((x for x in game["players"] if x["name"] == opponent), game)
+    player = next((x for x in game["players"] if x["name"] == player), game)
     if player["money"] >= amount:
         player["money"] -= amount
         opponent["money"] += amount
-    else:
+    elif player!=game:
         bankrupcy(player, amount, opponent)
+    else:
+        opponent["money"] += player["money"]
+        player["money"] =0
+        
 
 
 def buy(player, tile, opponent):
-    move_money(player["name"], opponent.get("name", "state"), tile["price"])
+    move_money(player["name"], opponent.get("name", "game"), tile["price"])
     tile["owner"] = player["name"]
     player["value"] += tile["price"]
-    player["properties"] = [x for x in state["tiles"] if x.get("owner", None) == player["name"]]
+    player["properties"] = [x for x in game["tiles"] if x.get("owner", None) == player["name"]]
 
 
 def built_list_maker(player, color):
-    color_set = [til for til in state["tiles"] if
+    color_set = [til for til in game["tiles"] if
                  (til.get("owner", None) == player["name"] and til.get('color', None) == color)]
-    built_list = [(pro["name"], pro["name"] + " " + str(pro.get("house_cost"))) for pro in color_set if
-                  pro["is_mortgaged"] == False]
-    built_list = []  # fixme: defined and cleared why?
+    built_list = [] 
     for pro in sorted(color_set, key=lambda x: x["index"]):
-        if pro["is_mortgaged"] == True:  # fixme : if one of them is mortgaged build is not possible
-            continue
         text = pro["name"]
         text += '*' * pro.get("houses", 0)
         text += str(pro.get("house_cost", 0))
@@ -380,45 +363,39 @@ def built_list_maker(player, color):
 
 
 def build(player, tile):
-    if can_change_house(player, tile, +1):
-        if tile["houses"] == 4 and state["hotels"] != 0 and player["money"] >= tile["hotel_cost"]:
-            state["houses"] += 4
-            state["hotels"] -= 1
-            tile["houses"] += 1
-            player["money"] -= tile["hotel_cost"]
-        elif (0 < tile["houses"] < 4) and state["houses"] != 0 and player["money"] >= tile["house_cost"]:
-            state["houses"] -= 1
-            tile["houses"] += 1
-            player["money"] -= tile["house_cost"]
-        else:
-            print_alert("problem")  # fixme: what is exactly the problem?
-    else:
-        print_alert("cant build")  # fixme: if can't build then why should show the build option?
+    if tile["houses"] == 4 and game["hotels"] != 0 and player["money"] >= tile["hotel_cost"]:
+        game["houses"] += 4
+        game["hotels"] -= 1
+        tile["houses"] += 1
+        player["money"] -= tile["hotel_cost"]
+    elif (0 < tile["houses"] < 4) and game["houses"] != 0 and player["money"] >= tile["house_cost"]:
+        game["houses"] -= 1
+        tile["houses"] += 1
+        player["money"] -= tile["house_cost"]
 
 
 def real_sell(player, opponent: dict, tile):
     if tile["houses"] == 0:
-        mortagage()
+        mortgage()
     else:
         if can_change_house(player, tile, -1):
             # sell option
 
             if tile["houses"] == 4:
-                state["houses"] -= 4
-                state["hotels"] += 1
+                game["houses"] -= 4
+                game["hotels"] += 1
                 tile["houses"] -= 1
-                move_money(opponent.get("name", "state"), player["name"], sell_value(tile))
+                move_money(opponent.get("name", "game"), player["name"], sell_value(tile))
             elif (tile["houses"] < 4):
-                state["houses"] += 1
+                game["houses"] += 1
                 tile["houses"] -= 1
-                move_money(opponent.get("name", "state"), player["name"], sell_value(tile))
+                move_money(opponent.get("name", "game"), player["name"], sell_value(tile))
             else:
                 print_alert("problem")
 
 
 def sell(player, opponent: dict):
-    # fixme: not bug but til???? only "e" is extra?
-    properties = [til for til in state["tiles"] if til.get("owner", None) == player["name"]]
+    properties = [tile for tile in game["tiles"] if tile.get("owner", None) == player["name"]]
     sell_list = []
     for pro in sorted(properties, key=lambda x: sell_value(x)):
         text = pro["name"]
@@ -426,33 +403,25 @@ def sell(player, opponent: dict):
         text += str(sell_value(pro))
         sell_list.append((pro["name"], text))
     clear_console()
-    show_players(state["players"], player)
+    show_players(game["players"], player)
     sold = show_property(sell_list)
     real_sell(player, opponent, sold)
 
-
-def pris():
-    turning = False
-    # todo
-    """
-    player["jail"]=True
-    if player["jail_pass"]>0:
-        player["jail"]=False
-    if player["dice_turn"]>0:
-        options = [("roll", "roll dice"),("pay", "Pay 50$")]
-    command = ''
-    if command == "roll":
-        dice_num, is_double=dice()        
-    """
+    
 
 
-def clean_dead(player, state):
-    for tile in state["tiles"]:
+def clean_dead(player, game, debter):
+    for tile in game["tiles"]:
         if tile.get("owner") == player["name"]:
-            tile["owner"] = None
+            if debter == game:
+                tile["owner"] = None
+            else:
+                tile["owner"] = debter["name"]
             tile["houses"] = 0
             tile["is_mortgaged"] = False
+                
 
 
 if __name__ == "__main__":
+    game = {"turn": 1, "houses": 32, "hotels": 12, "game_over": False, "money": 100000, "cards": {"chance_cards": ["Move to Boardwalk", "Go directly to Jail", "This card may be kept until needed\nGet out of jail free", "Pay $50 for visit a Doctor", "Go to GO tile and Collect $200", "This card may be kept until needed\nGet out of jail free", "Your speeding ticket is $20", "It's your birthday receive $100 from bank", "Go back 3 tiles", "Pay poor tax of $15"], "treasure_cards": ["Go to jail", "Get $50 from selling stocks", "Pay $50 to each player on the occasion of Nowruz", "Go to game Avenue\nIf you pass the GO tile you will receive $200", "Get a $50 subsidy", "Bank error in your account\nCollect $200", "Pay hospital fee of $100", "Go to the Short Line station\nGet $200 if you cross the GO tile", "Receive $100 from bank", "You have inherited $100"]}, "id": "6e752e1a-fce6-11f0-af12-dcf5059026fb", "players": [{"username": "yasin2007", "money": 1500, "in_jail": False, "position": 1, "properties": [], "jail_pass": 0, "dice_turn": 3, "bankrupt": False, "value": 0, "selling_power": 0, "doubles": 0, "id": "6d3bb9eb-fce6-11f0-9d7c-dcf5059026fb", "name": "4"}, {"username": "yasin2007", "money": 1500, "in_jail": False, "position": 1, "properties": [], "jail_pass": 0, "dice_turn": 3, "bankrupt": False, "value": 0, "selling_power": 0, "doubles": 0, "id": "60c8d601-fce6-11f0-b7d2-dcf5059026fb", "name": "2"}, {"username": "yasin2007", "money": 1500, "in_jail": False, "position": 1, "properties": [], "jail_pass": 0, "dice_turn": 3, "bankrupt": False, "value": 0, "selling_power": 0, "doubles": 0, "id": "675a2f4f-fce6-11f0-b091-dcf5059026fb", "name": "3"}, {"username": "yasin2007", "money": 1500, "in_jail": False, "position": 1, "properties": [], "jail_pass": 0, "dice_turn": 3, "bankrupt": False, "value": 0, "selling_power": 0, "doubles": 0, "id": "54541db9-fce6-11f0-a27e-dcf5059026fb", "name": "1"}]}
     turner(game)

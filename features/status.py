@@ -26,7 +26,7 @@ def status(player, game):
     details = f"\n\
 	[bold]Money[/bold]: ${player['money']}     | \
 	[bold]Position[/bold]: {player['position']}     | \
-	[bold]Jail Card[/bold]: {player['jail_cards_count']}"
+	[bold]Jail Card[/bold]: {player['jail_pass']}"
 
     if player["remained_jail"]:
         details += f" | [bold]Remained Jail[/bold]: {player['remained_jail']}"
