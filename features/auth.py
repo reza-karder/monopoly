@@ -11,7 +11,7 @@ def signin():
         email = input("Enter Your Email: ").strip().lower()
 
         # is empty
-        if (not email.strip()):
+        if not email.strip():
             print_alert("Please Enter Something", type="INFO", clear=False)
             return get_email()
 
@@ -19,7 +19,7 @@ def signin():
         exists = bool(list(filter(lambda user: user["email"] == email, users)))
 
         # is there any user with this email
-        if (not exists):
+        if not exists:
             print_alert("This Email Does Not Exists", type="INFO", clear=False)
             return get_email()
 
@@ -29,7 +29,7 @@ def signin():
         password = input("Enter Your Password: ").strip()
 
         # is empty
-        if (not password.strip()):
+        if not password.strip():
             print_alert("Please Enter Something", type="INFO", clear=False)
             return get_password()
 
@@ -42,7 +42,7 @@ def signin():
     user = list(filter(lambda user: user["email"] == email, users))[0]
     is_match = bcrypt.checkpw(password, user["password"].encode("utf-8"))
 
-    if (not is_match):
+    if not is_match:
         print_alert("Email Or Password Is Incorrect", type="INFO", clear=False)
         time.sleep(2)
         return signin()
@@ -56,14 +56,14 @@ def signup():
         email = input("Enter Your Email: ").strip().lower()
 
         # is empty
-        if (not email.strip()):
+        if not email.strip():
             print_alert("Please Enter Something", type="INFO", clear=False)
             return get_email()
 
         # is a correct form
         email_regex = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
 
-        if (not re.match(email_regex, email)):
+        if not re.match(email_regex, email):
             print_alert("Please Enter an Correct Email", type="INFO", clear=False)
             return get_email()
 
@@ -71,7 +71,7 @@ def signup():
         users = find_all_users()
         exists = bool(list(filter(lambda user: user["email"] == email, users)))
 
-        if (exists):
+        if exists:
             print_alert("This Email Already Exists", type="INFO", clear=False)
             return get_email()
 
@@ -81,14 +81,14 @@ def signup():
         password = input("Enter Your Password: ").strip()
 
         # is empty
-        if (not password.strip()):
+        if not password.strip():
             print_alert("Please Enter Something", type="INFO", clear=False)
             return get_password()
 
         # is a correct form
         password_regex = r"^(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$"
 
-        if (not re.match(password_regex, password)):
+        if not re.match(password_regex, password):
             print_alert(
                 "Password Must Follow These Conditions \n1. At least 8 characters \n2. At least one uppercase letter \n3. At least one number \n4. At least one special character",
                 type="INFO", 
@@ -102,20 +102,25 @@ def signup():
         name = input("Eenter Your Nick Name: ").strip()
 
         # is empty
-        if (not name.strip()):
+        if not name.strip():
             print_alert("Please Enter Something", type="INFO", clear=False)
             return get_name()
 
         # contains space?
-        if(" " in name):
+        if " " in name:
             print_alert("Name Cannot Contain Space", clear=False)
+            return get_name()
+
+        # name "game" is not allowed
+        if name == "game":
+            print_alert("The Name 'game' Is Not Allowed", type="INFO", clear=False)
             return get_name()
 
         users = find_all_users()
         is_unique = not bool(
             list(filter(lambda user: user["name"] == name, users)))
 
-        if (not is_unique):
+        if not is_unique:
             print_alert("This Nick Name Has Been Choosen", type="INFO", clear=False)
             return get_name()
 

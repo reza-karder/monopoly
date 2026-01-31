@@ -1,48 +1,59 @@
-from utils.utils import print_alert, print_panel, clear_console
+import time
+
+from features.Leaderboard import calculate_player_score
+from utils.utils import print_alert, print_panel, show_loading
 from prompt_toolkit.shortcuts import choice
-from data.tiles import tiles as ti
-import copy
-from models.models import update_game
-from utils.common import dice
-from utils.auction import auction
-from utils.mortgage import mortgage
+from models.models import update_game, find_user, update_user
+from utils.utils import dice
+from features.auction import auction
+from features.mortgage import mortgage
 from features.status import show_status
 from features.jail import jail
 from features.cards_handler import pick_chance_card, pick_treasure_card
-import time
+from features.unmortgage import unmortgage
+from features.move_money import move_money, handle_new_props
+
+#todo: trade must be added
+#todo: alerts must be fixed
+#todo: jail must be fixed
+#todo: score calculator
+
+colors = {"brown": 2, "light_blue": 3, "pink": 3, "orange": 3, "red": 3, "yellow": 3, "green": 3, "dark_blue": 2}
+game = {}
+turning = True
+lengths = 4
+options = []
 
 
-colors = {"brown": 2, "light_blue": 3, "pink": 3, "orange": 3, "red": 3, "yellow": 3, "green": 3, "dark blue": 2}
-
-
-def turner(game):
-
-    global turning
+def turner(game_model):
+    global game, turning, options, lengths
+    game = game_model
     turning = True
+    options = []
 
+    # show_loading("Loading Game...", duration=4)
 
     players = game["players"]
-    global lengths
-    lengths = 4
-    while not game["game_over"]:
 
-        players[:] = [p for p in players if not p["bankrupt"]]
+    while not game["game_over"]:
+        players = [p for p in players if not p["bankrupt"]]
 
         if len(players) <= 1:
             game["game_over"] = True
             break
-        player = players[game["turn"]]
-        show_status(game)
-        global options
-        options = []
+
+        player = game["players"][game["turn"]]
         dice_num = 0
         is_double = False
-        if player["in_jail"]:
-            jail()
-            next_turn(game, players)
-            continue
 
-        dice_num, is_double = dice()
+        if player["remained_jail"]:
+            jail(player, game)
+            if player["remained_jail"]:
+                next_turn()
+                continue
+
+        dice1, dice2, is_double = dice()
+        dice_num = dice1 + dice2
         check_position(player, dice_num)
 
         tile = game["tiles"][player["position"]]
@@ -51,83 +62,107 @@ def turner(game):
             player["doubles"] += 1
             if player["doubles"] == 3:
                 player["position"] = 10
-                player["in_jail"] = True
                 player["remained_jail"] = 3 
                 player["doubles"] = 0
-                show_players(game["players"], player, dice=dice_num)
-                next_turn(game, players)
+                show_status(game)
+                print_alert(f"You Have Got Into Jail For Three Times Double ({dice1}, {dice2})", clear=False, sleep=2)
+                next_turn()
                 continue
         else:
             player["doubles"] = 0
 
-        check_tile(player, tile, dice_num, is_double)
+        show_status(game)
+        print_alert(f"You Have Rolled ({dice1}, {dice2}) | Landed On {tile['name']}", clear=False)
+        check_tile(player, tile, dice_num)
 
+        if player["bankrupt"]:
+            next_turn()
+            continue
+
+        repeat = 0
         while turning:
-            options = []
+            show_status(game)
+            print_alert(f"You Have Rolled ({dice1}, {dice2}) | Landed On {tile['name']}", clear=False)
             
-            command = make_turn(player, tile)
+            command = make_turn(player, tile, repeat)
             if command == "end_turn":
+                options = []
                 break
+            options = []
             make_choice(command, player, tile)
+            repeat += 1
+
         if not is_double:  
-            next_turn(game, players)
+            next_turn()
         else:
             update_game(game["id"], game)
 
 
-def next_turn(game, players):
+
+    if game["game_over"]:
+        game_over()
+
+
+def game_over():
+    global game
+    winner = next(player for player in game["players"] if not player["bankrupt"])
+    score = calculate_player_score(winner, game)
+    print_alert(f"Game Is Over - Winner: {winner['name']} - Score: {score["total_assets"]}", sleep=6)
+
+    for player in game["players"]:
+        user = find_user(player["id"])
+
+        if player["name"] == winner["name"]:
+            user["score"] += score["total_assets"]
+
+        else:
+            user["score"] -= abs(player["debt"])
+
+        update_user(user["id"], user)
+
+    game["game_over"] = True
     update_game(game["id"], game)
-    time.sleep(3)
-    if len(players) == lengths:
-        game["turn"] = (game["turn"] + 1) % len(players)
 
 
-def make_turn(player, tile):
-    build_option(player, tile)
-    buy_option(player, tile)
-    sell_option(player)  
-    options.append(("end_turn", "End_turn"))
+def next_turn():
+    global game
+
+    game["turn"] = (game["turn"] + 1) % 4
+    update_game(game["id"], game)
+
+
+def make_turn(player, tile, repeat):
+    buyable_tile = bool(tile["type"] in ["railroad", "property", "utilities"] and tile["owner"] == "game")
+    if not (repeat == 0 and buyable_tile):
+        build_option(player, tile)
+        mortgage_option(player)
+        unmortgage_option(player)
+        trade_option(player)
+        options.append(("end_turn", "End_turn"))
 
     print_panel("choose", clear=False)
-    if len(options) == 1:
-        return "end_turn"
     command = choice(message='', options=options)
     return command
 
 
 def make_choice(command, player, tile):
+    global game, options
     match command:
         case "build":
-            built_list_maker(player, tile["color"])
-        case "sell":
-            sell(player, game)
+            build(player)
         case "mortgage":
-            mortgage()
+            mortgage(player, game)
         case "buy":
-            buy(player, tile, game)
+            buy(player, tile)
         case "auction":
-            auction(tile, game["players"], game)
+            auction(tile, game)
+        case "unmortgage":
+            unmortgage(player, game)
+        case "trade":
+            trade(player)
 
-
-def show_players(players, current, dice=None):
-    clear_console()
-    for player in players:
-        properties = player["properties"]
-        showing = ''
-        for proper in properties:
-            name = proper["name"]
-            if proper["is_mortgaged"]:
-                name += '#'
-            showing += name + ", "
-        if player == current:
-            print_panel(player["name"], str(player["money"]) + "$", player["position"], showing, "injail:",
-                        player["in_jail"], dice, clear=False, color="red")
-            continue
-        print_panel(player["name"], str(player["money"]) + "$", player["position"], showing, "injail:",
-                    player["in_jail"], clear=False)
-
-
-def check_tile(player, tile, dice_num, is_double):
+def check_tile(player, tile, dice_num):
+    global game, turning
     kind = tile["type"]
     match kind:
         case "property":
@@ -135,17 +170,22 @@ def check_tile(player, tile, dice_num, is_double):
         case "railroad":
             rail(player, tile)
         case "tax":
-            taxs(player, tile)
+            tax(player, tile)
         case "utilities":
-            comp(player, tile, dice_num)
-        case "jail":
-            player["in_jail"]=True
-        case "chance":
-            pick_chance_card(game)
+            utility(player, tile, dice_num)
+        case "go_to_jail":
+            player["remained_jail"]=3
+            player["position"] = 10
+            print_alert("You Got Into Jail!", clear=False, sleep=2)
             turning = False
+        case "chance":
+            card = pick_chance_card(game)
+            if card == "Go back 3 tiles":
+                check_tile(player, tile, dice_num)
         case "community":
             pick_treasure_card(game)
-            turning = False
+        case _:
+            return
 
 
 def check_position(player: dict, dice_num):
@@ -158,125 +198,202 @@ def check_position(player: dict, dice_num):
 
 
 def prop(player, tile):
-    if tile["owner"] == None:
-        # buy check money and buy or auction
-        pass
+    global game
+
+    if tile["owner"] == "game":
+        buy_option(player, tile)
 
     elif tile["owner"] != player["name"]:
-        cost = rentcalculator(tile, player)
-        move_money(player["name"], tile["owner"], cost)
-    else:
-        choices = []
-        try:
-            if tile.get("is_mortgaged", False) == True:
-                # mortgage buy back
-                options.append(("end_turn", "End_turn"))
-                command = choice(message="", options=[("mortgage", "Buy back"), ("end_turn", "End turn")],
-                                 default="end_turn")
-                if command == "mortgage":
-                    mortgage()
-        except Exception as e:
-            print_alert("not doing", e)
+        rent = rent_calculator(tile, player)
+        is_paid = move_money(player["name"], tile["owner"], rent, game)
+        if is_paid:
+            print_alert(f"You Have Paid ${rent} To {tile['owner']}", clear=False, sleep=2)
 
 
 def build_option(player, tile):
-    if own_color_set(player, tile):
-        try:
-            if tile.get("house_cost", None) <= player["money"] and can_change_house(player,tile,1):
-                options.append(("build", "build house"))
-        except Exception:
-            pass
-
-
+    global options
+    if get_buildable(player):
+        options.append(("build", "Build House/Hotel"))
 
 
 def buy_option(player, tile):
-    if tile.get("owner", "not buyable") == None:
-        if tile["price"] > player["money"]:
-            options.append(("auction", f"auction {tile['name']}"))
-        else:
-            options.append(("buy", f"Buy {tile['name']} {tile['price']}"))
-            options.append(("auction", f"auction {tile['name']}"))
+    global options
+
+    if tile["price"] > player["money"]:
+        options.append(("auction", f"auction {tile['name']}"))
+    else:
+        options.append(("buy", f"Buy {tile['name']} ${tile['price']}"))
+        options.append(("auction", f"auction {tile['name']}"))
 
 
-def end_turn():
-    turning = False
+def unmortgage_option(player):
+    global game
+    unmortgageable = [
+        tile
+        for tile in game["tiles"]
+        if tile["owner"] == player["name"]
+        and tile["is_mortgaged"]
+        and player["money"] > round(tile["mortgage"] * 1.1)
+    ]
+
+    if unmortgageable:
+        options.append(("unmortgage", "Unmortgage"))
 
 
-def sell_option(player):
-    properties = [til for til in game["tiles"] if til.get("owner", None) == player["name"]]
-    if properties:
-        options.append(("sell", "Sell"))
-        return (True)
+def mortgage_option(player):
+    global game
+    mortgageable = [
+        tile
+        for tile in game["tiles"]
+        if tile["owner"] == player["name"]
+        and not tile["is_mortgaged"]
+        and tile.get("houses", 0) == 0
+    ]
+
+    if mortgageable:
+        options.append(("mortgage", "Mortgage"))
 
 
-def can_change_house(player, tile, change):
-    houses = []
-    if color_set := own_color_set(player, tile):
-        for land in color_set:
-            if land == tile:
-                houses.append(tile["houses"] + change)
+def trade_option(player):
+    global game, options
+
+    player_props = [
+        tile
+        for tile in game["tiles"]
+        if tile["owner"] == player["name"]
+        and tile.get("houses", 0) == 0
+    ]
+
+    owned_props = [
+        tile
+        for tile in game["tiles"]
+        if tile["owner"] != player["name"]
+        and tile["owner"] != "game"
+        and tile.get("houses", 0) == 0
+    ]
+
+    if player_props and owned_props:
+        options.append(("trade", "Trade"))
+
+
+def trade(player):
+    global game
+
+    properties = [
+        tile
+        for tile in game["tiles"]
+        if tile["owner"] == player["name"]
+        and tile.get("houses", 0) == 0
+    ]
+
+    owned_props = [
+        tile
+        for tile in game["tiles"]
+        if tile["owner"] != player["name"]
+        and tile["owner"] != "game"
+        and tile.get("houses", 0) == 0
+    ]
+
+    print_panel("Choose The Property You Want To Trade")
+    player_prop_name = choice(message="", options=[(prop["name"], prop['name']) for prop in properties])
+    player_prop = next(tile for tile in game["tiles"] if tile["name"] == player_prop_name)
+
+
+    print_panel("Choose The Property You Want To Trade With")
+    opponent_prop_name = choice(message="", options=[(prop["name"], prop["name"]) for prop in owned_props])
+    opponent_prop = next(tile for tile in game["tiles"] if tile["name"] == opponent_prop_name)
+    opponent = next(plyr for plyr in game["players"] if plyr["name"] == opponent_prop["owner"])
+
+    print_panel(f"{opponent['name']} Do You Want To Trade {player_prop_name} With {opponent_prop_name}?")
+    answer = choice(message="", options=[("yes", "Yes"), ("no", "No")])
+
+    if answer == "yes":
+        player_prop["owner"] = opponent["name"]
+        opponent_prop["owner"] = player["name"]
+        print_alert(f"{player_prop_name} Is Traded With {opponent_prop_name}", type="SUCCESS", sleep=2)
+        handle_new_props([opponent_prop], player, game)
+        handle_new_props([player_prop], opponent, game)
+
+    else:
+        print_alert(f"{opponent['name']} Has Refused To Trade With", type="ERROR", sleep=2)
+
+def get_buildable(player):
+    global game, colors
+
+    properties = [
+        tile
+        for tile in game["tiles"]
+        if tile["owner"] == player["name"] and tile["type"] == "property"
+    ]
+    buildable = []
+
+    for tile in properties:
+        same_colors = [
+            prop
+            for prop in properties
+            if prop.get("color", None) == tile.get("color", None)
+        ]
+
+        count = len(same_colors)
+        if count != colors[tile["color"]]:
+            continue
+
+        if tile["houses"] < 4:
+            if not game["houses"]:
                 continue
-            houses.append(land["houses"])
-    else:
-        return False
-    if max(houses) - min(houses) >= 2:
-        return False
-    else:
-        return True
+
+            if player["money"] < tile["house_cost"]:
+                continue
+
+            if tile["houses"] > min([prop["houses"] for prop in same_colors]):
+                continue
+
+        elif tile["houses"] == 4 :
+            if not game["hotels"]:
+                continue
+
+            if player["money"] < tile["hotel_cost"]:
+                continue
+
+        buildable.append(tile)
+
+    return buildable
 
 
-def own_color_set(player, tile):
-    color = tile.get("color", None)
-    if not color:
-        return False
-    color_set = []
-    for property in game["tiles"]:
-        if property["type"] == "property" and property["color"] == color and property["owner"] == player["name"] and property["mortgaged"]==False:
-            color_set.append(property)
-    if len(color_set) == colors[color]:
-        return color_set
-    else:
-        return None
+def rent_calculator(tile, player:dict, dice=0):
+    global game
 
-
-def rentcalculator(tile, player: dict, dice=0):
     if tile["type"] == "property":
-        return tile["rent"][tile["houses"]]  
+        return tile["rent"][tile["houses"] + tile["hotels"]]
+
     elif tile["type"] == "railroad":
         num = 0
-        for proper in game["tiles"]:
-            if proper["type"] == "railroad" and proper["owner"] == player["name"]:
-                num += 1
-        return tile["rent"][num-1] 
-    elif tile["type"] == "utilities":  
+        railroads = [
+            prop
+            for prop in game["tiles"]
+            if prop["owner"] == tile["owner"]
+               and prop["type"] == "railroad"
+               and not prop["is_mortgaged"]
+        ]
+        num = len(railroads)
+        return tile["rent"][num-1]
+
+    elif tile["type"] == "utilities":
         num = 0
-        properties = [x for x in game["tiles"] if x["owner"] == tile["owner"]]
-        for proper in properties:
-            if proper["type"] == "utilities":
-                num += 1
+        utilities = [
+            prop
+            for prop in game["tiles"]
+            if prop["owner"] == tile["owner"]
+            and prop["type"] == "utilities"
+            and not prop["is_mortgaged"]
+        ]
+        print(utilities)
+        time.sleep(2)
+        num = len(utilities)
         if num == 1:
             return dice * 4
         elif num == 2:
             return dice * 10
-        else:
-            ValueError("wrong number of utilities") 
-    else:
-        raise ValueError("wrong type")
-
-
-def bankrupcy(player, price, opponent: dict):
-    global lengths
-    if player["bankrupt"] == True:
-        return []
-    while price > player["money"]:
-        properties = [x for x in game["tiles"] if x.get("owner", None) == player["name"]]
-        if not properties:
-            player["bankrupt"] = True
-            clean_dead(player, game, opponent)
-            lengths -= 1
-            return []
-        sell(player, opponent)
 
 
 def sell_value(tile):
@@ -294,134 +411,89 @@ def sell_value(tile):
 
 
 def show_property(sell_list):
+    global game
+    print_panel("Select The Property You Want To Sell")
     sold = choice(message="", options=sell_list)
     sold_tile = next(tile for tile in game["tiles"] if tile["name"] == sold)
     return sold_tile
 
 
-
-
-
-def taxs(player, tile):
+def tax(player, tile):
     tax = tile["amount"]
-    move_money(player["name"], "game", tax)
-    turning = False
+    is_paid = move_money(player["name"], "game", tax, game)
+    if is_paid:
+        print_alert(f"You Have Paid Tax Of ${tax}", clear=False, sleep=2)
 
 
 def rail(player, tile):
-    if tile["owner"] == None:
+    global game
+
+    if tile["owner"] == "game":
         buy_option(player, tile)
+
     elif tile["owner"] != player["name"]:
-        for user in game["players"]:
-            if user["name"] == tile["owner"]:
-                owner = user
-                break
-        rent = rentcalculator(tile, player=owner)
-        move_money(player["name"], tile["owner"], rent)
+        owner = next(plyr for plyr in game["players"] if plyr["name"] == tile["owner"])
+        rent = rent_calculator(tile, player=owner)
+        is_paid = move_money(player["name"], tile["owner"], rent, game)
+        if is_paid:
+            print_alert(f"You Have Paid ${rent} To {tile['owner']}", clear=False, sleep=2)
 
 
-def comp(player, tile, dice_num):
-    if tile["owner"] == None:
-        buy(player, tile, game)
+def utility(player, tile, dice_num):
+    global game
+
+    if tile["owner"] == "game":
+        buy_option(player, tile)
+
     elif tile["owner"] != player["name"]:
-        rent = rentcalculator(tile, player, dice=dice_num)
-        move_money(player["name"], tile["owner"], rent)
+        rent = rent_calculator(tile, player, dice=dice_num)
+        is_paid = move_money(player["name"], tile["owner"], rent, game)
+        if is_paid:
+            print_alert(f"You Have Paid ${rent} To {tile['owner']}", clear=False, sleep=2)
 
 
-def move_money(player, opponent, amount):
-    opponent = next((x for x in game["players"] if x["name"] == opponent), game)
-    player = next((x for x in game["players"] if x["name"] == player), game)
-    if player["money"] >= amount:
-        player["money"] -= amount
-        opponent["money"] += amount
-    elif player!=game:
-        bankrupcy(player, amount, opponent)
-    else:
-        opponent["money"] += player["money"]
-        player["money"] =0
-        
-
-
-def buy(player, tile, opponent):
-    move_money(player["name"], opponent.get("name", "game"), tile["price"])
+def buy(player, tile):
+    global game
+    move_money(player["name"], "game", tile["price"], game)
     tile["owner"] = player["name"]
-    player["value"] += tile["price"]
-    player["properties"] = [x for x in game["tiles"] if x.get("owner", None) == player["name"]]
+    print_alert(f"You Have Bought {tile['name']} - ${tile['price']}", type="SUCCESS", sleep=2)
 
 
-def built_list_maker(player, color):
-    color_set = [til for til in game["tiles"] if
-                 (til.get("owner", None) == player["name"] and til.get('color', None) == color)]
-    built_list = [] 
-    for pro in sorted(color_set, key=lambda x: x["index"]):
-        text = pro["name"]
-        text += '*' * pro.get("houses", 0)
-        text += str(pro.get("house_cost", 0))
-        built_list.append((pro["name"], text))
-    built = show_property(built_list)
-    build(player, built)
+def build(player):
+    global game, colors
 
+    buildable = get_buildable(player)
 
-def build(player, tile):
-    if tile["houses"] == 4 and game["hotels"] != 0 and player["money"] >= tile["hotel_cost"]:
-        game["houses"] += 4
-        game["hotels"] -= 1
-        tile["houses"] += 1
-        player["money"] -= tile["hotel_cost"]
-    elif (0 < tile["houses"] < 4) and game["houses"] != 0 and player["money"] >= tile["house_cost"]:
-        game["houses"] -= 1
-        tile["houses"] += 1
-        player["money"] -= tile["house_cost"]
+    while buildable:
 
+        options = [
+            (tile, f"{tile["name"]} - {f'+house ${tile['house_cost']}' if tile['houses'] < 4 else f'+hotel ${tile['hotel_cost']}'} ")
+            for tile in buildable
+        ]
+        options.append(("return", "Return"))
+        print_panel("Choose The Property You Want To Build On")
+        selected = choice(message="", options=options)
 
-def real_sell(player, opponent: dict, tile):
-    if tile["houses"] == 0:
-        mortgage()
-    else:
-        if can_change_house(player, tile, -1):
-            # sell option
+        if selected == "return":
+            return
 
-            if tile["houses"] == 4:
-                game["houses"] -= 4
-                game["hotels"] += 1
-                tile["houses"] -= 1
-                move_money(opponent.get("name", "game"), player["name"], sell_value(tile))
-            elif (tile["houses"] < 4):
-                game["houses"] += 1
-                tile["houses"] -= 1
-                move_money(opponent.get("name", "game"), player["name"], sell_value(tile))
-            else:
-                print_alert("problem")
+        index = game["tiles"].index(selected)
+        tile = game["tiles"][index]
 
+        if tile["houses"] < 4:
+            tile["houses"] += 1
+            player["money"] -= tile["house_cost"]
+            game["houses"] -= 1
+            print_alert(f"You Have Built House On {tile['name']}", type="SUCCESS", sleep=2)
 
-def sell(player, opponent: dict):
-    properties = [tile for tile in game["tiles"] if tile.get("owner", None) == player["name"]]
-    sell_list = []
-    for pro in sorted(properties, key=lambda x: sell_value(x)):
-        text = pro["name"]
-        text += '*' * pro.get("houses", 0)
-        text += str(sell_value(pro))
-        sell_list.append((pro["name"], text))
-    clear_console()
-    show_players(game["players"], player)
-    sold = show_property(sell_list)
-    real_sell(player, opponent, sold)
+        else:
+            tile["hotels"] += 1
+            player["money"] -= tile["hotel_cost"]
+            game["hotels"] -= 1
+            print_alert(f"You Have Built Hotel On {tile['name']}", type="SUCCESS", sleep=2)
 
+        buildable = get_buildable(player)
     
 
-
-def clean_dead(player, game, debter):
-    for tile in game["tiles"]:
-        if tile.get("owner") == player["name"]:
-            if debter == game:
-                tile["owner"] = None
-            else:
-                tile["owner"] = debter["name"]
-            tile["houses"] = 0
-            tile["is_mortgaged"] = False
-                
-
-
 if __name__ == "__main__":
-    game = {"turn": 1, "houses": 32, "hotels": 12, "game_over": False, "money": 100000, "cards": {"chance_cards": ["Move to Boardwalk", "Go directly to Jail", "This card may be kept until needed\nGet out of jail free", "Pay $50 for visit a Doctor", "Go to GO tile and Collect $200", "This card may be kept until needed\nGet out of jail free", "Your speeding ticket is $20", "It's your birthday receive $100 from bank", "Go back 3 tiles", "Pay poor tax of $15"], "treasure_cards": ["Go to jail", "Get $50 from selling stocks", "Pay $50 to each player on the occasion of Nowruz", "Go to game Avenue\nIf you pass the GO tile you will receive $200", "Get a $50 subsidy", "Bank error in your account\nCollect $200", "Pay hospital fee of $100", "Go to the Short Line station\nGet $200 if you cross the GO tile", "Receive $100 from bank", "You have inherited $100"]}, "id": "6e752e1a-fce6-11f0-af12-dcf5059026fb", "players": [{"username": "yasin2007", "money": 1500, "in_jail": False, "position": 1, "properties": [], "jail_pass": 0, "dice_turn": 3, "bankrupt": False, "value": 0, "selling_power": 0, "doubles": 0, "id": "6d3bb9eb-fce6-11f0-9d7c-dcf5059026fb", "name": "4"}, {"username": "yasin2007", "money": 1500, "in_jail": False, "position": 1, "properties": [], "jail_pass": 0, "dice_turn": 3, "bankrupt": False, "value": 0, "selling_power": 0, "doubles": 0, "id": "60c8d601-fce6-11f0-b7d2-dcf5059026fb", "name": "2"}, {"username": "yasin2007", "money": 1500, "in_jail": False, "position": 1, "properties": [], "jail_pass": 0, "dice_turn": 3, "bankrupt": False, "value": 0, "selling_power": 0, "doubles": 0, "id": "675a2f4f-fce6-11f0-b091-dcf5059026fb", "name": "3"}, {"username": "yasin2007", "money": 1500, "in_jail": False, "position": 1, "properties": [], "jail_pass": 0, "dice_turn": 3, "bankrupt": False, "value": 0, "selling_power": 0, "doubles": 0, "id": "54541db9-fce6-11f0-a27e-dcf5059026fb", "name": "1"}]}
-    turner(game)
+    turner(game_model)
