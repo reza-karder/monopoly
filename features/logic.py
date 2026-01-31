@@ -31,7 +31,7 @@ def turner(game_model):
     turning = True
     options = []
 
-    # show_loading("Loading Game...", duration=4)
+    show_loading("Loading Game...", duration=4)
 
     players = game["players"]
 
