@@ -7,6 +7,7 @@ import os
 from random import randint
 import time
 from rich.progress_bar import ProgressBar
+import random
 
 types = {
     "INFO": { "color": "cyan" },
@@ -56,6 +57,19 @@ def dice():
         return(dice1,dice2, True)
     return (dice1,dice2,False)
 
+
+def dice_loading(player):
+    count = random.randint(4, 8)
+    dice1, dice2, is_double = 0, 0, False
+
+    for i in range(count):
+        dice1, dice2, is_double = dice()
+        print_panel(f"{player['name']} Is Dicing... ({dice1}, {dice2})")
+        time.sleep(0.5)
+
+
+    time.sleep(0.5)
+    return dice1, dice2, is_double
 
 def show_loading(text, duration):
     progress = ProgressBar(total=100)

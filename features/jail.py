@@ -1,6 +1,6 @@
 from features.move_money import move_money
 from utils.utils import print_alert, print_panel
-from utils.utils import dice
+from utils.utils import dice_loading
 from prompt_toolkit.shortcuts import choice
 
 def jail(player, game):
@@ -33,7 +33,7 @@ def jail(player, game):
                 print_alert("You Got Free", type="SUCCESS", sleep=2)
 
         case "roll the dice":
-            dice1, dice2, is_double = dice()
+            dice1, dice2, is_double = dice_loading(player)
 
             if is_double:
                 print_alert(f"You Have Rolled ({dice1}, {dice2}) and Got Free", type="SUCCESS", sleep=2)
