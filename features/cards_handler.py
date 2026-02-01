@@ -59,7 +59,7 @@ def pick_treasure_card(game):
         case  "Go to jail":
             player["position"]=10
             player["remained_jail"]=3
-            
+
         case  "Pay hospital fee of $100":
             move_money(player["name"], "game", 100, game)
         
@@ -100,3 +100,5 @@ def pick_treasure_card(game):
                        
         case   "Get a $50 subsidy":
                  player["money"]+=50
+
+    return card

@@ -31,6 +31,7 @@ def turner(game_model):
     players = game["players"]
 
     while not game["game_over"]:
+        turning = True
         players = [p for p in players if not p["bankrupt"]]
 
         if len(players) <= 1:
@@ -38,16 +39,19 @@ def turner(game_model):
             break
 
         player = game["players"][game["turn"]]
+        dice1, dice2 = 0, 0
         dice_num = 0
         is_double = False
 
         if player["remained_jail"]:
-            jail(player, game)
+            dice1, dice2, is_double = jail(player, game)
             if player["remained_jail"]:
                 next_turn()
                 continue
 
-        dice1, dice2, is_double = dice_loading(player)
+        if not dice1:
+            dice1, dice2, is_double = dice_loading(player)
+
         dice_num = dice1 + dice2
         check_position(player, dice_num)
 
@@ -133,7 +137,7 @@ def make_turn(player, tile, repeat):
         mortgage_option(player)
         unmortgage_option(player)
         trade_option(player)
-        options.append(("end_turn", "End_turn"))
+        options.append(("end_turn", "End Turn"))
 
     print_panel("choose", clear=False)
     command = choice(message='', options=options)
@@ -177,8 +181,13 @@ def check_tile(player, tile, dice_num):
             card = pick_chance_card(game)
             if card == "Go back 3 tiles":
                 check_tile(player, tile, dice_num)
+            elif card == "Go directly to Jail":
+                turning = False
+
         case "community":
-            pick_treasure_card(game)
+            card = pick_treasure_card(game)
+            if card == "Go to jail":
+                turning = False
         case _:
             return
 
@@ -332,6 +341,9 @@ def get_buildable(player):
         count = len(same_colors)
         if count != colors[tile["color"]]:
             continue
+        min_building_count = min([prop["houses"] + prop["hotels"] for prop in same_colors])
+        if tile["houses"] + tile["hotels"] > min_building_count:
+            continue
 
         if tile["houses"] < 4:
             if not game["houses"]:
@@ -340,8 +352,9 @@ def get_buildable(player):
             if player["money"] < tile["house_cost"]:
                 continue
 
-            if tile["houses"] > min([prop["houses"] for prop in same_colors]):
-                continue
+
+        elif tile["hotels"] == 1:
+            continue
 
         elif tile["houses"] == 4 :
             if not game["hotels"]:
@@ -349,6 +362,7 @@ def get_buildable(player):
 
             if player["money"] < tile["hotel_cost"]:
                 continue
+
 
         buildable.append(tile)
 
@@ -382,7 +396,7 @@ def rent_calculator(tile, player:dict, dice=0):
             and prop["type"] == "utilities"
             and not prop["is_mortgaged"]
         ]
-        print(utilities)
+
         time.sleep(2)
         num = len(utilities)
         if num == 1:
@@ -485,6 +499,7 @@ def build(player):
             tile["hotels"] += 1
             player["money"] -= tile["hotel_cost"]
             game["hotels"] -= 1
+            game["houses"] += 4
             print_alert(f"You Have Built Hotel On {tile['name']}", type="SUCCESS", sleep=2)
 
         buildable = get_buildable(player)

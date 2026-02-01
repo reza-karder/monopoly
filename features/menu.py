@@ -122,6 +122,8 @@ def run_start_menu():
 
         case "leader_board":
             show_leaderboard()
+            choice(message="", options=[("return", "Return to Main Menu")])
+            run_start_menu()
 
         case "exit":
             return

@@ -38,6 +38,7 @@ def jail(player, game):
             if is_double:
                 print_alert(f"You Have Rolled ({dice1}, {dice2}) and Got Free", type="SUCCESS", sleep=2)
                 player["remained_jail"] = 0
+                return dice1, dice2, is_double
 
             elif player["remained_jail"] == 1:
                 print_alert(f"You Have Rolled ({dice1}, {dice2}) and Must Pay $50", sleep=2)
@@ -45,7 +46,10 @@ def jail(player, game):
                 if is_paid:
                     print_alert("You Paid $50 Got Free", type="SUCCESS", sleep=2)
                     player["remained_jail"] = 0
+                return dice1, dice2, is_double
 
             else:
                 player["remained_jail"] -= 1
                 print_alert(f"You Have Rolled ({dice1}, {dice2}) and Remain In Jail", sleep=2)
+
+    return None,None,None

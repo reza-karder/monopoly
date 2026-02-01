@@ -80,10 +80,9 @@ def clean_dead(player, opponent, amount, game):
         handle_new_props(mortgaged_props, opponent, game)
 
     else:
-        game["cards"]["chance_cards"] = [
+        game["cards"]["chance_cards"] = ([
             "This card may be kept until needed\nGet out of jail free"
-            * player["jail_cards_count"]
-        ] + game["cards"]["chance_cards"]
+        ] * player["jail_cards_count"] ) + game["cards"]["chance_cards"]
 
     player["debt"] = player["money"] - amount
     player["money"] = 0

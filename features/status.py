@@ -88,8 +88,8 @@ def show_board(game):
         if tile["type"] == "property":
             details = (
                 f"{tile['houses']} Houses"
-                if tile["houses"] <= 4
-                else f"${tile['hotels']} Hotels"
+                if not tile["hotels"]
+                else f"{tile['hotels']} Hotel"
             )
 
         return Layout(
