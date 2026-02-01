@@ -4,7 +4,6 @@ from features.Leaderboard import calculate_player_score
 from utils.utils import print_alert, print_panel, show_loading
 from prompt_toolkit.shortcuts import choice
 from models.models import update_game, find_user, update_user
-from utils.utils import dice
 from features.auction import auction
 from features.mortgage import mortgage
 from features.status import show_status
@@ -12,11 +11,7 @@ from features.jail import jail
 from features.cards_handler import pick_chance_card, pick_treasure_card
 from features.unmortgage import unmortgage
 from features.move_money import move_money, handle_new_props
-
-#todo: trade must be added
-#todo: alerts must be fixed
-#todo: jail must be fixed
-#todo: score calculator
+from utils.utils import dice_loading, dice
 
 colors = {"brown": 2, "light_blue": 3, "pink": 3, "orange": 3, "red": 3, "yellow": 3, "green": 3, "dark_blue": 2}
 game = {}
@@ -31,7 +26,7 @@ def turner(game_model):
     turning = True
     options = []
 
-    # show_loading("Loading Game...", duration=4)
+    show_loading("Loading Game...", duration=4)
 
     players = game["players"]
 
@@ -52,7 +47,7 @@ def turner(game_model):
                 next_turn()
                 continue
 
-        dice1, dice2, is_double = dice()
+        dice1, dice2, is_double = dice_loading(player)
         dice_num = dice1 + dice2
         check_position(player, dice_num)
 
@@ -315,7 +310,7 @@ def trade(player):
         handle_new_props([player_prop], opponent, game)
 
     else:
-        print_alert(f"{opponent['name']} Has Refused To Trade With", type="ERROR", sleep=2)
+        print_alert(f"{opponent['name']} Has Refused To Trade", type="ERROR", sleep=2)
 
 def get_buildable(player):
     global game, colors

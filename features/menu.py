@@ -42,8 +42,9 @@ def new_game():
 
         users.append(user)
 
-    game = create_game(users)
-    turner(game)
+    if len(users) == 4:
+        game = create_game(users)
+        turner(game)
 
 
 def load_game():

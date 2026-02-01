@@ -1,7 +1,7 @@
 import time
 
-from rich import print
-from rich.console import Console, Group
+from rich import print, padding
+from rich.console import Console, Group, group
 from rich.layout import Layout
 from rich.padding import Padding
 from rich.panel import Panel
@@ -48,10 +48,11 @@ def status(player, game):
     for property in properties:
         houses = str((property.get("houses", 0) + property.get("hotels", 0) % 5))
         hotels = property.get("hotels", 0)
+        color = colors.get(property.get("color", None), "")
 
         table.add_row(
             property["name"],
-            property.get("color", ""),
+            Text("    ", style=f"on {color}"),
             str(property["index"]),
             str(property["price"]),
             "Yes" if property["is_mortgaged"] else "No",
@@ -69,7 +70,7 @@ def status(player, game):
 def show_board(game):
     global colors
     tiles = game["tiles"]
-    console = Console()
+    console = Console(height=90)
 
     layout = Layout()
     layout.split_column(*[Layout(name=str(i)) for i in range(1, 12)])
@@ -82,6 +83,7 @@ def show_board(game):
         )
         players_name = ",".join([f'🙎({player["name"]})' for player in players_in_tile])
         details = ""
+        owner = tile["owner"] if tile["owner"] != "game" else ""
 
         if tile["type"] == "property":
             details = (
@@ -91,12 +93,19 @@ def show_board(game):
             )
 
         return Layout(
-            Panel(
-                Text(players_name, justify="center"),
-                title=tile["name"],
-                subtitle=details,
-                border_style=f"{colors.get(tile.get("color", None), "")}",
-            )
+            Padding(
+                Group(
+                Panel(
+                    Text(players_name, justify="center"),
+                    height=5,
+                    title=tile["name"],
+                    subtitle=details,
+                    border_style=f"{colors.get(tile.get("color", None), "")}",
+                ),
+                Text(owner, justify="center"),
+
+            ),pad= 1
+        )
         )
 
     # split the rows
@@ -122,7 +131,7 @@ def show_board(game):
 
     layout["11"].split_row(*[render_tile(i) for i in range(10, -1, -1)])
 
-    print(layout)
+    console.print(layout)
 
 
 def show_status(game):

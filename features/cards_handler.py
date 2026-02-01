@@ -15,10 +15,10 @@ def pick_chance_card(game):
             player["position"]=39
             
         case "Pay tax of $15":
-            player["money"]-=15
+            move_money(player["name"], "game", 15, game)
             
         case "Go directly to Jail":
-            player["position"]=0
+            player["position"]=10
             player["remained_jail"]=3
             
         case "Go to GO tile and Collect $200":
