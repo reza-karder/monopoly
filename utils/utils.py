@@ -41,7 +41,7 @@ def print_alert(text, type="INFO", clear=True, sleep=0):
     if clear:
         clear_console()
 
-    content = content = Text(text, justify="center")
+    content = Text(text, justify="center")
     panel = Panel(
         content, border_style=f"{types[type]['color']}"
     )
